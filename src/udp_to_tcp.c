@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <poll.h>
 
-#define DEBUG 0
+#define DEBUG 1
 
 #define PREENY_MAX_FD 8192
 
@@ -134,35 +134,37 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *
 {
 	if (DEBUG)
 		printf(" --------------------- Calling recvfrom ---------------------\n");
-	int recv_fd = fds[sockfd];
-	if (recv_fd <= 0)
-		recv_fd = get_fd(src_addr);
-	if (recv_fd <= 0)
+	if (fds[sockfd] > 0 || get_fd(src_addr) > 0)
 	{
-		if (listen(sockfd, PREENY_MAX_FD) != 0)
-		{
-			return -1;
-		}
-		if (DEBUG)
-			printf("Listening on socket: %d\n", sockfd);
-
-		int new_fd = accept(sockfd, src_addr, addrlen);
-		if (DEBUG)
-		{
-			printf("Accepting on socket: %d\n", sockfd);
-			printf("Returned fd: %d\n", new_fd);
-		}
-		if (new_fd < 0)
-		{
-			return -1;
-		}
-		set_fd(src_addr, new_fd, sockfd);
-		recv_fd = new_fd;
+		original_close(fds[sockfd]);
+		free(addrs[fds[sockfd]]);
+		addrs[fds[sockfd]] = NULL;
+		fds[sockfd] = -1;
+		udp_fds[fds[sockfd]] = -1;
 	}
+
+	if (listen(sockfd, PREENY_MAX_FD) != 0)
+	{
+		return -1;
+	}
+	if (DEBUG)
+		printf("Listening on socket: %d\n", sockfd);
+
+	int new_fd = accept(sockfd, src_addr, addrlen);
+	if (DEBUG)
+	{
+		printf("Accepting on socket: %d\n", sockfd);
+		printf("Returned fd: %d\n", new_fd);
+	}
+	if (new_fd < 0)
+	{
+		return -1;
+	}
+	set_fd(src_addr, new_fd, sockfd);
 	// initialize a sockaddr_in for the peer
 	if (DEBUG)
 		printf("Max read amount: %d\n", len);
-	int read_amount = read(recv_fd, buf, len);
+	int read_amount = read(new_fd, buf, len);
 
 	if (DEBUG)
 	{
